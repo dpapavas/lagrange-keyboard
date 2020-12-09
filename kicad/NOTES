@@ -1,0 +1,101 @@
+Controller circuit checklist:
+=============================
+
+* Bypassing
+  - Vcc:
+    All Vcc/AVcc pins are bypassed properly.  UVcc is the input to the
+    USB pads regulator and, while not very clear, doesn't seem to need
+    bypassing other than that of the VBus line feeding it.
+
+    Parts(C4, C6-8): 0.1uF 10%, X7R, 0603, EMK107B7104KA-T (buy 20)
+
+  - Ucap (C5): 1uF 10%, X7R, 0603, EMK107B7105KA-T (buy 10)
+
+  - Vbus:
+    The VBus pin 7 is not a power supply input, but instead a VBus
+    monitor input.  Only the recommended 10uF capacitor (C1) is used
+    on the VBus line.
+
+    Parts(C1): 10uF 10%, X7R, 0805, EMK212BB7106KG-T (buy 10)
+
+* Reset pin
+  - R3 value: AN2519 suggests "4.7k or more", Pro Micro uses 10k, Teensy uses nothing.
+  - R3 part no.: 10k, 100mW, 1%, CRCW060310K0FKEA (buy 10)
+  - Need filter cap?
+    AN2519 mentions it's not directly required; just added protection
+    for noisy environments. Could add pads, but since it would also
+    necessitate a further resistor between the reset switch, will
+    leave out for now.
+
+* Clock crystal
+  - Crystal part no.: 16MHz, 10 pF, ABM3B-16.000MHZ-10-1-U-T (buy 4)
+                      16MHz, 18 pF, ABM3B-16.000MHZ-B2-T (buy 4)
+  - Load capacitor part: 12pF 1%, 50V, C0G, 0603, GRM1885C1H120FA01D (buy 10)
+                         15pF 1%, 50V, C0G, 0603, GRM1885C1H150FA01D (buy 10)
+                         18pF 1%, 50V, C0G, 0603, GRM1885C1H180FA01D (buy 10)
+                         22pF 1%, 50V, C0G, 0603, GRM1885C1H120FA01D (buy 10)
+
+* USB comms
+  - R1/2 part no.: 22 Ohm, 100mW, 1%, CRCW060322R0FKEA (buy 10)
+  - DP/DM routing:
+    40mil/6mil trace width/spacing should give a differential
+    impedance of about 90Ohm, given 1oz/ft^2 copper (1.4mil) and a
+    60mil FR4 width.  Skew phase has been tuned.
+
+  - Connector part no.: 5787834-1 (buy 4)
+  - Connector shield grounding:
+    Lots of conflicting information around.  Best seems to be to
+    simply ground it, with the lowest impedance connection at the
+    quietest part of the board.
+
+* USB programming
+  - pull-down on HWB sufficient?
+
+    The documentation says that with the HWB pin enabled (i.e. low),
+    the bootloader is executed after a "reset".  It is not very clear
+    what may constitute a reset, i.e. whether a power-up is a reset as
+    well.  But it seems that only a manual reset counts.  It should
+    therefore be safe to tie the HWB pin permanently to ground,
+    through a current-limiting resistor.  In case of problems, the
+    resistor can be omitted and the pads used as a jumper.
+
+    Also note that fuses cannot be programmed through the DFU, but we
+    shouldn't need to program any fuses.  CKDIV8 divides the clock by
+    8, but QMK overrides it in software.  As a last resort, it should
+    be possible to program via ISP, through the 6P6C connector.
+
+* Split comms
+  - 6P6C part no.: 5520425-3 (buy 4)
+  - any easy way to isolate Vcc from USB port in slave?
+    Leave it for a possible second revision.
+
+* PCB
+  - Manuf. service:
+  - Service design rules:
+  - DRC/ERC:
+  - Labels:
+
+* BOM:
+J1 (1 pcs, USB_B): 5787834-1 (buy 4)
+Y1 (1 pcs, Crystal_GND24): 16MHz, 10 pF, ABM3B-16.000MHZ-10-1-U-T (buy 4)
+                           16MHz, 18 pF, ABM3B-16.000MHZ-B2-T (buy 4)
+C4,C7,C8,C6 (4 pcs, 100nF): 0.1uF 10%, X7R, 0603, EMK107B7104KA-T (buy 20)
+C1 (1 pcs, 10uF): 10uF 10%, X7R, 0805, EMK212BB7106KG-T (buy 10)
+J2,J3 (2 pcs, Conn_01x08): B8B-PH-K-S, PHR-8, SPH-002T-P0.5L (JST)
+                           440054-8, 440129-8 (TE Connectivity) (buy 10)
+                           
+J5 (1 pcs, Conn_01x06): B6B-PH-K-S, PHR-6, SPH-002T-P0.5L (JST)
+                        440054-6, 440129-6 (TE Connectivity)  (buy 5)
+
+J4 (1 pcs, 6P6C): 5520425-3 (buy 4)
+U1 (1 pcs, ATmega32U4-AU): ATMEGA32U4-AU (buy 3)
+SW1 (1 pcs, SW_Push): TL3305AF160QG (buy 5)
+R4 (1 pcs, 1k):  RCA06031K00FKEA (buy 10)
+C5 (1 pcs, 1uF 10%): EMK107B7105KA-T (buy 10)
+C3,C2 (2 pcs, 22p): 12pF 1%, 50V, C0G, 0603, GRM1885C1H120FA01D (buy 10)
+                    15pF 1%, 50V, C0G, 0603, GRM1885C1H150FA01D (buy 10)
+                    18pF 1%, 50V, C0G, 0603, GRM1885C1H180FA01D (buy 10)
+                    22pF 1%, 50V, C0G, 0603, GRM1885C1H220FA01D (buy 10)
+R3 (1 pcs, 10K): CRCW060310K0FKEA (buy 10)
+R2,R1 (2 pcs, 22 5%): CRCW060322R0FKEA (buy 10)
+
