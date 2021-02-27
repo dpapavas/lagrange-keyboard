@@ -39,6 +39,7 @@ comprehensive, but not needlessly verbose set of instructions.
     + [Rows](#rows)
   * [Wiring the harness](#wiring-the-harness)
   * [Installing the boot](#installing-the-boot)
+  * [Keycaps](#keycaps)
 - [The controller](#the-controller)
   * [BOM](#bom)
   * [Design](#design)
@@ -1243,6 +1244,44 @@ fairly well without glue, but gluing allows more hassle-free handling
 and is straightforward to do, since using a simple all-purpose
 adhesive allows plenty of time to properly install the boot and remove
 any residue before the glue cures.
+
+### Keycaps
+
+The default configuration has been designed for and tested with DSA
+and SA keycaps.  I would expect other keycap profiles to work as well,
+but you should probably stick to uniform height keysets.  The nominal
+set of required keycaps is the following:
+
+| Keycap size | No. required | Notes |
+| ----------- | ------------ | ----- |
+| 1u          | 54           | 22 for the main section of each side, 1 for the outer key on the first thumb row, plus 4 for the "cross-like" lower thumb rows.|
+| 1.25u       | 2            | 1 for the inner key of the first thumb row on each side. |
+| 1.5u        | 14           | 4 for the outer column of each side, plus 1 for the palm key and two more for the middle keys in the first thumb row. |
+
+A standard Ergodox keyset should cover all of these keys except the
+palm keys and the 1.25u keys in the thumb section.  It is highly
+recommended to print and use convex keycaps for the first thumb row,
+but if you don't want to, and can't easily source 1.25u keycaps in
+small quantities, 1u keycaps can be used instead.  Similarly, using
+custom "saddle" keycaps, or at least convex keycaps, for the palm keys
+is recommended, but standard 1.5u (or even 2u, if you don't mind the
+aesthetic result) keys can be used instead.  Special "fanged" 1u keys
+can be used for the inner keys in the "cross" portion of the thumb
+section, to reduce the curl required for the thumb to reach them as
+much as possible and also to allow more comfortable pressing with the
+palm, but if you can't stand their looks, simple 1u keys should work
+well enough.
+
+Finally keep in mind that the effective curvature radius, i.e. that of
+the key tops, is the sum of the chassis radius plus the keycap height.
+As a result, you can use different keycap sets to fine-tune the
+geometry of a finished build.  For instance, the default design might
+be more comfortable with DSA keycaps for someone with longer fingers,
+whereas SA keycaps might be preferable for someone with smaller hands.
+This is certainly true for the main sections, but you're probably
+better off sticking with DSA keycaps for the thumb sections, as this
+reduces overall height and affords a more comfortable resting position
+for the thumb.
 
 ## The controller
 
