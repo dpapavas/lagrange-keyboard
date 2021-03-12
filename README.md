@@ -1,6 +1,6 @@
 # The Lagrange keyboard
 
-![The Lagrange keyboard](./doc/lagrange_keyboard.png?raw=true)
+![The Lagrange keyboard](./doc/lagrange_keyboard_bridged.png?raw=true)
 
 The Lagrange is a configurable, split, handwired keyboard, designed
 for ergonomics.  This is meant in the sense that as many keys as

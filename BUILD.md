@@ -1,3 +1,5 @@
+<!-- -*- coding: utf-8 -*- -->
+
 # Building instructions
 
 Building a handwired keyboard can be a daunting task and the Lagrange
@@ -22,12 +24,14 @@ comprehensive, but not needlessly verbose set of instructions.
   * [The bottom cover](#the-bottom-cover)
   * [The stand](#the-stand)
   * [The boot](#the-boot)
+  * [The bridge](#the-bridge)
   * [Final checks](#final-checks)
 - [Printing](#printing)
   * [The chassis](#the-chassis)
   * [The bottom cover](#the-bottom-cover-1)
   * [The stand](#the-stand-1)
   * [The boot](#the-boot-1)
+  * [The bridge](#the-bridge-1)
   * [Miscellanea](#miscellanea)
     + [Printing keycaps](#printing-keycaps)
   * [Some notes on finishing](#some-notes-on-finishing)
@@ -39,6 +43,7 @@ comprehensive, but not needlessly verbose set of instructions.
     + [Rows](#rows)
   * [Wiring the harness](#wiring-the-harness)
   * [Installing the boot](#installing-the-boot)
+  * [Assembling the bridge](#assembling-the-bridge)
   * [Keycaps](#keycaps)
 - [The controller](#the-controller)
   * [BOM](#bom)
@@ -444,17 +449,17 @@ additional tenting angle due to the stand, can be adjusted via
 `stand-tenting-angle`.  To avoid bulk, the inside of the stand volume
 is hollowed out, so that only a strip along its perimeter remains.
 The width of that strip is `stand-width`.  To further lighten the
-part, the upper portion of the stand (which attaches to the bottom
-cover) is shortened as dictated by `stand-split-points`.  The meaning
-of these numbers has to do with details of the stand's construction,
-so it's best to just increase or decrease them until the desired
-result is achieved.  Finally, a wedge-shaped part is cut out of what
-remains of the stand.  This is formed so that the thickness of the
-inner extremities of the stand are as specified in
-`stand-minimum-thickness`, and the tip of the wedge is of size and
-location determined by the `stand-cutout-*` parameters.  The stand
-attaches to the chassis, via a set of shared screw bosses, given by
-`stand-boss-indexes`.
+part, a portion of the inner side of the stand is also removed,
+leaving behind thin, arm-like projections that are sufficient to
+provide attachment points to the keyboard and to support it.  The
+depth of this cutout can be changed via `stand-split-points`.  The
+meaning of these numbers has to do with details of the stand's
+construction, so it's best to just increase or decrease them until the
+desired result is achieved.  Additionally, it is possible to determine
+the thickness, length and slope of the remaining projections with
+`stand-minimum-thickness`, `stand-arm-lengths` and `stand-arm-slope`
+respectively.  The stand attaches to the chassis, via a set of shared
+screw bosses, given by `stand-boss-indexes`.
 
 The above probably sounds complex, but some experimentation with the
 parameters will provide a feel for how the stand can be modified.  I
@@ -465,8 +470,8 @@ yield a serviceable-looking, albeit entirely untested 15° stand:
 
 ```clojure
 (def stand-tenting-angle (degrees 15))
-(def stand-cutout-radius [4 3])
-(def stand-cutout-depth [-1 -1/2])
+(def stand-arm-slope (degrees 5))
+(def stand-minimum-thickness [9/2 4 4/10])
 ```
 
 This is probably the smallest tenting angle, which still provides
@@ -486,6 +491,152 @@ The sidewall thickness and the thickness of the bottom of the boot can
 be set via `boot-wall-thickness` and `boot-bottom-thickness`
 respectively.
 
+### The bridge
+
+The bridge is not really necessary and can be considered an accessory.
+It consists of a linkage that attaches to the two halves, keeping the
+position and relative orientation constant.  This is an attempt to
+address an issue with split keyboards, where each side is held in
+place only by the friction with the desktop and is therefore
+relatively free to move, or rather drift, over time.  This is only
+made worse when the keyboard is tented, as the force applied by the
+fingers has a considerable sideways component and also because the
+larger height of the keyboard above the desktop makes it easier to
+inadvertently push on it.
+
+The end result is that the two halves tend to drift out of position,
+gradually increasing discomfort until a repositioning is required.  It
+also gives the hand a "moving target", in the sense that the key
+placement it needs to adjust to, is always slightly (or significantly)
+different.  To avoid this, you can use the bridge to connect the two
+halves, adjusting the separation distance between them, as well as the
+"toe angle", in the sense of "toe in/out", i.e. the rotation of each
+part relative to the vertical.  Once set and attached, the two sides
+will always retain the same relative position.
+
+To allow adjustment, the bridge is designed as a linkage made up of 5
+parts, or links.  Two, referred to as "mount links" below, are
+fastened to each side via screw bosses shared with the bottom plate,
+similar to the stand and provide attachment bearings for the other
+links, which are made up of threaded rods with suitable rod ends, that
+allow the links to be assembled in a predetermined, rigid, but
+adjustable configuration.
+
+Of the three rod links, two are toe adjustment links, or simply "toe
+links" and determine the rotation relative to the vertical,
+independently for each side, while the other is a longer link used to
+attach the two sides and keep them at a set distance.  It will be
+referred to below as the "separation adjustment link", or simply
+"separation link".
+
+Optionally, brackets can also be produced, which can be used to guide
+the cable connecting the two sides along the separation link and keep
+it out of the way.  The complete assembly can be seen below:
+
+![Bridge assembly](./doc/bridge_assembly.png?raw=true)
+
+All parts of the bridge can be built separately using a command of the
+general form:
+
+```bash
+lein run bridge/subpart --no-draft --no-mock-threads
+```
+
+Here `subpart` can be any of the following:
+
+* `right-mount`: The mount link, meant to be fastened onto the right
+  side bottom cover.
+* `left-mount`: Same, but for the left side.
+* `toe-fork`: The fork rod end for the toe link.
+* `toe-eye` The eye rod end for the toe link.
+* `separation-fork`: The double-pin fork rod end for the separation link.
+* `bracket`: The bracket, used to guide the cable connecting the two sides.
+
+The bridge parts can be configured to a considerable extent, although
+most of the parameters shouldn't need adjustment in most cases.  The
+default settings produce parts made for M6 threaded rods, which
+although perfectly sufficient for the job can make the assembly
+somewhat fragile.  The default setting can be changed via
+`bridge-link-thread`, where for instance the setting `[8 3/5 5/4]`
+would produce parts for M8 threads.  The second number above sets a
+diameter increase of 0.6mm above the nominal 8mm, which serves to
+produce a looser fitting thread.  This should be adjusted
+experimentally with a few test builds, as the proper value depends on
+printer settings and personal preference.  The outer diameter of the
+threaded part of the rod ends can be adjusted via
+`bridge-link-diameter`.
+
+The geometry of the bridge is adjusted by altering the length of the
+rod links.  To this end, the rod ends on one or both sides of the link
+are made with a long threaded section, so that the threaded rod can be
+threaded as far in as necessary to achieve the desired length before
+being secured by means of a jam nut.  There are two rod end styles.
+The simplest is a fixed rod end, which needs to be disassembled before
+it can be adjusted.  To make adjustments easier, one can use a
+rotating rod end, where the threaded section can rotate freely
+relative to the clevis or eye end.  Adjustment can then be carried out
+in place, simply by loosening the jam nut and turning the threaded
+section as required.  While such a rod end can be conveniently printed
+in-place, as a single part and does work as described above, the
+backlash in the built-in joint causes some play in the final assembly,
+which can allow some relative motion of the two parts, which though
+small, can be annoying.  Since adjustment is meant to be made once (or
+at least rarely), the afforded convenience is probably not worth the
+price, so the default configuration uses fixed rod ends everywhere.
+
+#### The separation link
+
+The separation link consists of a threaded rod with clevis rod ends on
+each side.  It can be configured via `bridge-separation-fork`, which
+specifies the type, thread length and range of rotation of the rod
+end.  The latter essentially determines the spacing of the pin holes
+and can probably be left to the default value.
+
+If a large adjustment range is needed, which would require in turn a
+long rod end, which can be hard to print, it is probably better to
+divide the adjustment range among both ends.  For instance, the
+default configuration allows for about 50mm of adjustment on each end,
+for a total of 100mm of adjustment.  Alternatively a short rod end
+(with about 7mm of thread) can be used on one side, with all
+adjustment carried out on the other.
+
+These can then be used with an M6 threaded rod of suitable length to
+allow for the necessary separation distance.  One attractive
+alternative, that would allow adjustment in-place, would be to use a
+so-called turnbuckle, i.e. a rod threaded with left handed threads on
+one side and regular right handed threads on the other.  One rod end
+would then need to printed with left handed threads, which can be
+accomplished simply by mirroring the part in the slicer.  While this
+method is convenient, it can be hard to source a turnbuckle rod of
+suitable length and with long enough threaded sections to allow a
+large enough adjustment range.
+
+#### The toe links
+
+The toe link consists of a relatively short threaded rod (short enough
+that a grub screw can be used) with a clevis fork rod end on one side
+and a eye rod end on the other.  They can be configured via
+`bridge-toe-fork`, `bridge-toe-eye`, similarly to
+`bridge-separation-fork` above.  The length can be adjusted at the
+fork end and the default configuration allows for a range of
+adjustment that should cover most uses, so that it can probably be
+left as-is.
+
+If a different adjustment range is desired, one can estimate the
+needed changes by noting that the geometry is determined by the
+triangle with vertices at the center of each of the three bolts (for a
+given side; see figure above).  The top side is set by the pin hole
+spacing in the separation link fork end.  Of the other two, one side
+is determined by the length of the toe link, while the remaining side
+is determined by the distance of the two bearings of the mount link,
+which can be adjusted to some extent if required, through
+`bridge-bearing-separation` .  One can then determine the adjustment
+range of the toe angle by using the law of cosines.
+
+Finally the cable bracket can be adjusted via `bridge-bracket-size`,
+which determines the size of the aperture of the cable bracket.  The
+default setting is large enough for a rather bulky coiled 6P6C cable,
+and can be made smaller, if a simple straight cable is used.
 
 ### Final checks
 
@@ -665,6 +816,44 @@ density to create a sort of "tread" on the bottom of the boot.  This
 won't really increase the maximum grip to be had on a clean surface,
 but it might help retain some grip as grime and dust starts building
 up.  Sadly, you'll have to clean the table at some point.
+
+Another trick, which produces excellent results as far as grip is
+concerned, but can be a bit messy, is to print the boot with TPU and
+then apply a thin layer of silicone on the bottom. This can be done
+with a thin flat-bladed tool and a grid-like tread on the bottom helps
+by providing recesses for the silicone to grip onto.
+
+### The bridge
+
+The bridge parts, although small and simple, can be tricky to print.
+The mount link is mostly straightforward, the only consideration being
+placement on the build plate.  While it would seem more
+straightforward to forego the bosses on the mount holes and lay the
+part with the mount plate flat against the build plate, this would make
+it hard to get a nice surface on the overhang resulting from the
+arched part.  It is therefore best to lay it upright, along its long
+edge.  Even though only a small part of one of the mount tabs makes
+direct contact with the build plate, it is still easy to achieve a
+good print, if the speed is lowered somewhat.
+
+The rod ends must be printed upright, with the threaded part on the
+build plate.  The threads should not require supports, but Cura seems
+to create them anyway, so a support blocker should be used to suppress
+them on the threaded part.  (The holes of the fork or eye end will
+need to be supported of course.)  The smallest achievable layer size
+should be used, to increase the quality of the threads.  Since these
+parts can be relatively long, the speed should be lowered
+considerably, to reduce the wobble caused as the hotend drags along
+the previous layer and tends to rock the part along with it
+increasingly, as it climbs higher.  Finally, the fork or eye ends
+present an additional problem as, especially around the holes, the
+layers become quite small and thin, with accordingly small layer
+times, which doesn't allow sufficient time for the previous layer to
+cool.  (Even worse, this area is also the weakest point of the part
+and most prone to breaking, making print quality especially
+important.) The "minimum layer time" should therefore be raised
+accordingly, perhaps along with a higher "maximum fan speed", to
+provide increased cooling for the smaller layers.
 
 ### Miscellanea
 
@@ -1255,6 +1444,52 @@ fairly well without glue, but gluing allows more hassle-free handling
 and is straightforward to do, since using a simple all-purpose
 adhesive allows plenty of time to properly install the boot and remove
 any residue before the glue cures.
+
+### Assembling the bridge
+
+Assembly of the bridge is probably best carried out on the keyboard.
+The instructions below apply to the default configuration; if changes
+have been made, adjust accordingly.  Also, if you haven't done so
+already, you should probably first use the keyboard without the bridge
+for a while and try various positions (in terms of separation and toe
+angle), to see what works best.  You can then adjust the bridge
+accordingly straight away, without the hassle of having to partially
+dismantle it in order to try out changes to the setup.
+
+Begin by installing the mount links onto the bottom covers of each
+side, using M4 x 12mm or M4 x 16mm countersunk screws.  Next assemble
+the toe links by threading the eye rod end all the way onto a M6 x
+30mm grub screw and fastening it with a thin M6 jam nut.  The fork end
+should be threaded partway and similarly secured with a thin jam nut,
+making sure that both toe rods have the same length of grub screw
+thread showing.
+
+Align the the fork end with the lower mount link bearing hole and
+thread an M6 x 16mm button (or similar) head style screw through the
+holes, without fastening it just yet.  Align one hole of the
+separation link fork with the upper bearing of the mount link and the
+other with the toe link eye and thread M6 x 16mm (or 20mm if
+installing the brackets) screws, again without applying nuts on the
+other end.
+
+With the bridge partially assembled on each end, position the keyboard
+sides as desired.  Adjust the toe link lengths so that the separation
+links face each other at the desired toe angle, then thread a suitably
+long (i.e. long enough to achieve the desired separation when threaded
+halfway into the separation link rod end, leaving room for adjustments
+should they be necessary) into the separation link rod ends and
+tighten lightly with jam nuts.  Try out the resulting setup and if no
+further adjustments are required, install the cable brackets (if used)
+and tighten all fork bolts with thin jam nuts and washers.
+
+Tightening is required to make the assembly rigid, as backlash in the
+joints will otherwise allow some motion, but light tightening should
+be sufficient.  Don't overdo it as the forks are relatively prone to
+breaking.  Also exercise care when handling the bridged keyboard; the
+bridge may look like a convenient handle, but it was not designed to
+bear loads and its length can make it quite easy to apply large
+torques on the joints.  Always carry the keyboard holding both sides,
+making sure not to stress the bridge more than necessary.
 
 ### Keycaps
 

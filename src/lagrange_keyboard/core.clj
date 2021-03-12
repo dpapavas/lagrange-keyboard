@@ -205,15 +205,23 @@
 
 ;; Stand parameters.
 
-(def stand-split-points [16 52])         ; How much to shorten the top.
+;; The stand is essentially formed by a rotational extrusion of the
+;; bottom cover polygon.  To save on material, the inner portion is
+;; removed, leaving a strip along the outside, parts of which (the
+;; inner, taller tented sections) are also removed in turn, leaving
+;; arm-like protrusions which are enough to stabilize the keyboard.
+;; These arms can optionally be shortened to save on desktop
+;; real estate, although this should be avoided, unless a bridge is
+;; installed.
+
 (def stand-tenting-angle (degrees 35))   ; The angle of extrusion.
 (def stand-shape-factor 0)               ; 0 is radial extrusion, 1 is projection.
 (def stand-width 25/2)                   ; The width of the strip forming the stand cross-section.
-(def stand-minimum-thickness [1 4 4/10]) ; Thickness at inner top, inner bottom and outer bottom.
-(def stand-cutout-position 0.45)         ; Where, along the arc of extrusion the cutout wedge points.
-(def stand-cutout-radius [16 10])        ; The radius of the cutout wedge tip.
-(def stand-cutout-depth [-3/4 -5/8])     ; Offset of the wedge tip from the split points.
+(def stand-minimum-thickness [6 4 4/10]) ; Thickness at inner bottom, inner top and outer bottom.
 (def stand-boss-indexes [0 3, 1 8])      ; The screw bosses shared by the stand.
+(def stand-split-points [15 51])         ; The locations where the arms begin.
+(def stand-arm-lengths [3 11, 2 6])      ; Hom much to shorten the arms.
+(def stand-arm-slope (degrees 13))
 
 ;; Stand boot parameters.
 
@@ -224,8 +232,40 @@
 ;; printing tolerances, etc.
 
 (def boot-wall-thickness [11/20 -5/20])
-(def boot-wall-height 5/2)              ; The height of the sidewalls.
-(def boot-bottom-thickness 3/2)         ; The thickness of the boot floor.
+(def boot-wall-height 2)            ; The height of the sidewalls.
+(def boot-bottom-thickness 1)       ; The thickness of the boot floor.
+
+;; Bridge parameters.
+
+(def bridge-arch-radius 6)
+(def bridge-boss-indexes [4 5 6])   ; The mating boss indexes for the mount link.
+(def bridge-bore-expansion 1/5)     ; How much to expand the diameter of bearing and link bores.
+(def bridge-bearing-separation -10) ; Shortens the separation of the bridge bearings.
+
+;; The thread diameter of the bridge links also determines the
+;; geometry of the rod ends.  The first value below determines the
+;; nominal diameter, on which the rod end geometry is based, while the
+;; second value allows increasing the actual thread diameter above the
+;; nominal, to adjust the thread fit (loose or tight), while keeping
+;; the rest of the geometry constant.  The third value is the thread
+;; pitch.
+
+(def bridge-link-thread [6 1/2 1])
+(def bridge-link-diameter 11)           ; Outer diameter of the linkage bars.
+
+;; Link rod end specification as (type, thread length, range).  The
+;; type can be :fixed or :rotating.  The latter type allows adjustment
+;; in place, but backlash in the rotational joint makes the linkage
+;; less rigid, allowing some motion between the two halves, which can
+;; be annoying.  The range adjusts the spacing of the pin holes and
+;; with it the approximate range of rotation (past the 90° point)
+;; before interference with the mating part prohibits further motion.
+
+(def bridge-separation-fork [:fixed 55 (degrees 10)])
+(def bridge-toe-fork [:fixed 17 (degrees 10)])
+(def bridge-toe-eye [:fixed 7 (degrees 20)])
+
+(def bridge-bracket-size [18 23])       ; Cable bracket aperture size.
 
 ;; Controller PCB parameters.
 
@@ -354,12 +394,12 @@
          (conj (mapv (partial * 1/2) (key-scale-at where, i j)) 1/2)
          [plate-size plate-size plate-thickness])))
 
-(defn thread [D_maj P L]
+(defn thread [D_maj P L & [L_extra]]
   (if (or draft? mock-threads?)
     (let [r (/ D_maj 2)]
       (union
        (cylinder r L :center false)
-       (translate [0 0 L] (cylinder [r 0] r :center false))))
+       (translate [0 0 L] (cylinder [r 0] (or L_extra r) :center false))))
 
     ;; Match the *fs* setting, which is, by definition:
     ;;
@@ -377,22 +417,26 @@
        (concat
         [[0 0 0]]
 
+        ;; Vertices
+
         (apply concat (for [i (range N)
                             :let [r (+ D_maj (/ H 4))
                                   [x_1 x_2] (map (partial * 1/2 (Math/cos (* i δθ))) [D_min r])
                                   [y_1 y_2] (map (partial * 1/2 (Math/sin (* i δθ))) [D_min r])
-                                  z #(+ % (/ (* i δθ P) 2 π))]]
+                                  z #(* (+ % (/ (* i δθ) 2 π)) P)]]
 
-                        [[x_1 y_1 (z (/ P -2))]
-                         [x_1 y_1 (z (* P -3/8))]
+                        [[x_1 y_1 (z -1/2)]
+                         [x_1 y_1 (z -3/8)]
                          [x_2 y_2 (z 0)]
-                         [x_1 y_1 (z (* P 3/8))]
-                         [x_1 y_1 (z (/ P 2))]]))
+                         [x_1 y_1 (z 3/8)]
+                         [x_1 y_1 (z 1/2)]]))
 
         ;; Make the top of the thread conical, to ensure no support is
         ;; needed above it (for female threads).
 
-        [[0 0 (+ L (/ D_maj 2))]])
+        [[0 0 (+ L (or L_extra (/ D_maj 2)))]])
+
+       ;; Indices
 
        (concat
         [(conj (range 5 0 -1) 5 0)]
@@ -1590,8 +1634,8 @@
          n (count points)]
      (->> points
           (cycle)
-          (drop (+ n -1))
-          (take 61)))))
+          (drop n)
+          (take 60)))))
 
 (def stand-baseline-origin
   (delay
@@ -1609,48 +1653,506 @@
          (rotate [0 θ 0])
          (translate [t 0 0]))))
 
-(defn stand-section [s kernel & [outer]]
-  (let [θ (* -1 s stand-tenting-angle)
-        x_max @stand-baseline-origin]
+(defn stand-section
+  ([s kernel] (stand-section s [[0 0 0] [stand-width 0 0]] kernel))
+  ([s offsets kernel]
+   (let [θ (* -1 s stand-tenting-angle)
+         x_max @stand-baseline-origin]
 
-    ;; Form the strip by displacing each point of the periphery along
-    ;; the mean of the normals of the two edges that share it.  This
-    ;; doesn't even result in a simple polygon for the inner periphery
-    ;; of the strip, but it works well enough, as long as we're
-    ;; careful when taking hulls.
+     ;; Form the strip by displacing each point of the periphery along
+     ;; the mean of the normals of the two edges that share it.  This
+     ;; doesn't even result in a simple polygon for the inner periphery
+     ;; of the strip, but it works well enough, as long as we're
+     ;; careful when taking hulls.
 
-    (for [[[a b] [_b c]] (partition 2 1 @stand-baseline-points)
-          :let [_ (assert (= b _b))
+     (for [[[a b] [_b c]] (partition 2 1 @stand-baseline-points)
+           :let [_ (assert (= b _b))
 
-                u (map + (line-normal a b) (line-normal b c))
-                n (map (partial * (one-over-norm u) stand-width) u)
+                 u (map + (line-normal a b) (line-normal b c))
+                 n (map (partial * (one-over-norm u)) u)
+                 t [(- (second n)) (first n)]
 
-                ;; Scale with 1 / cos θ, to get a straight projection.
+                 ;; Scale with 1 / cos θ, to get a straight projection.
 
-                p (update b 0 #(+ (* (- 1 stand-shape-factor) %)
-                                  (* stand-shape-factor
-                                     (+ (* (- % x_max) (/ 1 (Math/cos θ))) x_max))))
-                p' (map + p n)]]
-      (stand-xform θ
-                   (for [q (if outer [p] [p p'])] (translate q kernel))))))
+                 p (update b 0 #(+ (* (- 1 stand-shape-factor) %)
+                                   (* stand-shape-factor
+                                      (+ (* (- % x_max) (/ 1 (Math/cos θ))) x_max))))]]
+       (stand-xform θ
+                    (for [u offsets
+                          :let [[c_n c_t c_b] u
+                                q (conj
+                                   (mapv + p (map (partial * c_n) n) (map (partial * c_t) t))
+                                   c_b)]]
+                      (translate q kernel)))))))
+
+(def countersink-boss
+  (delay
+   (difference
+    (countersink (- (/ cover-countersink-diameter 2) 1/4)
+                 cover-countersink-height
+                 0 0)
+    (translate [0 0 (+ 5 cover-countersink-height -1/2)] (cube 10 10 10)))))
 
 (defn stand-boss [& endpoints]
   (when-let [[x d] (place-boss? (set stand-boss-indexes) endpoints)]
-    (boss-place x d endpoints
-                (difference
-                 (countersink (- (/ cover-countersink-diameter 2) 1/4)
-                              cover-countersink-height
-                              0 0)
-                 (translate [0 0 (+ 5 cover-countersink-height -1)] (cube 10 10 10))))))
+    (boss-place x d endpoints @countersink-boss)))
 
 (defn stand-boss-cutout [& endpoints]
   (when-let [[x d] (place-boss? (set stand-boss-indexes) endpoints)]
     (boss-place x d endpoints (translate [0 0 -3/2]
                                          (countersink (/ cover-countersink-diameter 2)
                                                       cover-countersink-height
-                                                      50
-                                                      (+ (first stand-minimum-thickness)
-                                                         (apply min stand-cutout-radius)))))))
+                                                      50 20)))))
+
+;;;;;;;;;;;;
+;; Bridge ;;
+;;;;;;;;;;;;
+
+;; Rebind these for brevity.
+
+(let [D_ext bridge-link-diameter
+      [D D_add P] bridge-link-thread]
+
+  (defn bridge-bearing [indexes]
+    (let [[a b] (map #(conj % 0) (remove nil? (case-placed-shapes
+                                               (fn [& endpoints]
+                                                 (when-let [[x d] (place-boss? (set indexes) endpoints)]
+                                                   (boss-place x d endpoints))))))
+          t cover-thickness               ; Mount plate thickness
+          ε 3/5                           ; Chamfer length
+          R 6                             ; Fillet radius
+          N (if draft? 10 20)             ; The resolution of the arch extrusion.
+
+          ;; Flip a vector to point the right way, regardless of the
+          ;; relative poisition of a and b.
+
+          y (fn [v] (update v 1 (if (> (second b) (second a)) - +)))
+
+          R' (* (Math/sqrt 2) R)
+          R'' (- R' R)
+
+          ;; Points a and b are the mount hole locations.  We go at
+          ;; 45° for a bit to c (to bring the bearings closer
+          ;; together), then straight up to c', then to b.
+
+          δ (* -1/2 bridge-bearing-separation)
+          c (mapv - a (y [δ δ 0]))
+          c' (assoc c 0 (first b))
+
+          ;; The offset of the arch (with respect to a), needed to
+          ;; get proper fillets.
+
+          O (y [(- (first b) (first a) R') (- R'' ε δ D) 0])
+
+          ;; Points where additional needs to be placed and routed
+          ;; out to create nice fillets.
+
+          d (map + c' [0 (second O) 0] (y [(- R') (- δ D R'' ε) 0]))
+          e (map + a (y [(+ (- (first b) (first a) R'') R) (+ (- (first b) (first a) R'') R) 0]))
+
+          ;; A chamfered rectangular slice; the hulling kernel for
+          ;; the arch.
+
+          section (for [x [0 (+ ε ε)]]
+                    (cube 1/10 (+ D D ε ε x) (- t x)))
+
+          ;; A pre-chamfered disk; the hulling kernel for the mount.
+
+          chamfered-disk #(union
+                           (cylinder % t)
+                           (cylinder (+ % ε) (- t ε ε)))
+
+          ;; The reverse of the above in a way; to cut out fillets.
+
+          fillet-cutout
+          (fn [r & parts]
+            (->> (list*
+                  (translate p (cylinder (- r ε) h))
+                  (->> (cylinder [(- r ε) (+ r ε)] (+ ε ε) :center false)
+                       (rotate [(* 1/2 π (dec s)) 0 0])
+                       (translate (map + p [0 0 (* 1/2 s h)]))
+                       (for [s [-1 1]])))
+
+                 ;; The above parts are not convex and need to be
+                 ;; hulled separately.
+
+                 (for [p parts :let [h (- t ε ε)]])
+                 (apply map vector)
+                 (map hull)))
+
+          ;; Transform into place along the arch.
+
+          xform #(->> %2
+                      (translate [0 0 bridge-arch-radius])
+                      (rotate [0 (* -1 %1 stand-tenting-angle) 0])
+                      (translate (map +
+                                      [0 0 (- bridge-arch-radius)]
+                                      O))
+                      (translate a))]
+      (translate
+       [0 0 (- cover-thickness)]
+
+       (difference
+        (union
+         (for [p [a b]] (translate p @countersink-boss))
+
+         (translate
+          [0 0 (- 1 (/ t 2))]
+
+          (let [h (- D t)
+                D' (+ D ε ε)
+
+                ;; A bent plate mounted on the bottom cover on one
+                ;; end and providing a bearing for the clevis on
+                ;; the other.
+
+                plate
+                (union
+                 ;; Most of the plate.
+
+                 (->> (apply union
+                             (list*
+                              (when (zero? i) (translate [R'' 0 0] section))
+                              (when (= i N) (->> (chamfered-disk (+ D ε))
+                                                 (translate [(- D') 0 0])))
+                              section))
+
+                      (xform (/ i N))      ; Transform into place.
+                      (for [i (range (inc N))])
+                      (partition 2 1)      ; Take pairs and hull.
+                      (mapv hull)
+                      union)
+
+                 ;; Bottom cover mount parts.
+
+                 (difference
+                  (->> (chamfered-disk R)
+                       (translate p)
+                       (for [p [a c c' b]])
+                       (partition 2 1)
+                       (mapv hull)
+
+                       ;; Some additional material, to be formed into
+                       ;; fillets below.
+
+                       (cons (->> (cube R' R' t)
+                                  (translate c')
+                                  (translate (y [(/ R' -2) (/ R' 2) 0]))))
+                       (cons (->> (cube R'' R'' t)
+                                  (translate d)
+                                  (translate (y [(/ R'' 2) (/ R'' 2) 0]))))
+                       (cons (->> (cube R' (* 3 R') t)
+                                  (translate a)
+                                  (translate (y [0 (* -2 R') 0]))))
+
+                       (apply union))
+
+                  (apply fillet-cutout R (for [Δ [[-50 0 0]
+                                                  [0 0 0]
+                                                  [50 50 0]]] (map + c (y [(- R') R' 0]) (y Δ))))
+                  (apply fillet-cutout R (for [Δ [[50 50 0]
+                                                  [0 0 0]
+                                                  [0 -50 0]]] (map + e (y [R' (- R') 0]) (y Δ))))
+                  (fillet-cutout R'' d)))
+
+                ;; The parts that make up the bearing, to be hulled separately.
+
+                parts (let [ε_2 (/ ε 2)]
+                        [(translate [0 0 (- h ε_2)] (cylinder [D (+ D ε_2)] ε_2 :center false))
+                         (translate [0 0 ε_2] (cylinder D (- h ε) :center false))
+                         (cylinder [(- D ε_2) D] ε_2 :center false)])]
+
+            (difference
+             (->> (cond->> p                        ; Take each bearing part.
+
+                    intersect? (#(->> %             ; Maybe extend along X.
+                                      (translate [u 0 0])
+                                      (for [u [0 50]])
+                                      (apply hull)))
+
+                    true (#(->> %                   ; Transform into place.
+                                (translate [(- D') 0 (- (/ t -2) h)])
+                                (xform 1)))
+
+                    intersect? (intersection plate)) ; Maybe intersect with the plate.
+
+                  (for [intersect? [true false]])   ; Bearing + intersection with plate
+                  (apply hull)                      ; Hull together to form ribs.
+                  (for [p parts])                   ; For all parts.
+                  (apply union plate))
+
+             ;; Pin bore cutouts
+
+             (->> (countersink (/ (+ D bridge-bore-expansion) 2) (* 1/8 D) 50 50)
+                  (rotate [(* π (dec u)) 0 0])
+                  (translate [(- D') 0 (- (/ t 2) (* u D))])
+                  (xform 1)
+                  (for [u [0 1]]))))))
+
+        ;; Mount screw countersinks
+
+        (for [p [a b]]
+          (->> (countersink (/ cover-countersink-diameter 2)
+                            cover-countersink-height
+                            50 50)
+               (translate p)
+               (translate [0 0 (- 1 t)])))))))
+
+
+  ;; A clevis fork/eye head, in the style of DIN 71751.  Can have more
+  ;; than one holes.  The angle φ determines the distance from
+  ;; base (or previous hole) to hole, in such a way that the maximum
+  ;; range of the joint is 180° + 2φ.  In other words you can move it,
+  ;; up to φ degrees past the 90° mark.
+
+  ;;          +--+          +--+---------
+  ;;          |//|          |//|       .
+  ;;          +--+          +--+---    .
+  ;;          |  |          |  | .     .
+  ;; ---------|  |          |  | D     .
+  ;;  .   .   |  |          |  | .     .
+  ;;  .   .   +--+          +--+---    .
+  ;;  .   .   |//|          |//|       .
+  ;;  .  l_1  |//|          |//|       .
+  ;;  .   .   |//|          |//|      l_3
+  ;;  .   .   |//|          |//|       .
+  ;; l_2 -----+--+----------+--+       .
+  ;;  .       |////////////////|       .
+  ;;  .       +--+//////////+--+-----  .
+  ;;  .          |//////////|      .   .
+  ;;  .          |//////////|     l_4  .
+  ;;  .          |//////////|      .   .
+  ;; ------------+----------+------------
+  ;;             |...D_ext..|
+
+  (defn clevis [style φ & [n]]
+    (let [ε 0.8                ; Chamfer legnth / fillet radius
+          n' (or n 1)
+
+          δ (* D (+ 1 (Math/tan φ)))
+          δ' (* (dec n') (+ δ D))
+          l_1 (+ ε δ)
+          l_4 (* 4/3 D)
+          l_2 (+ l_4 (/ D 2) l_1)
+          l_3 (+ l_2 D 1)
+          l_3' (+ l_3 δ')
+          l_34' (/ (- l_3' l_4) 2)
+
+          ;; Mirrored countersinks to form the bore.
+
+          bore #(->> (countersink (+ (/ (+ D bridge-bore-expansion) 2)) (* 1/8 D) 50 50)
+                     (rotate [(* π 1/2 (dec s)) 0 0])
+                     (translate [0 0 (* % s D)])
+                     (for [s [-1 1]])
+                     (apply rotate [(/ π 2) 0 0])
+                     (translate [0 0 l_2]))
+
+          ;; Corner rounding geometry
+
+          rounding #(->> (sphere (/ l_3 2))
+                         (scale [1.05 1.05 1])
+                         (translate [0 0 (* s %)])
+                         (for [s [-1/2 1/2]]))]
+
+      (if (= style :eye)
+        ;; A clevis eye rod end.
+
+        (-> (cylinder (/ D_ext 2) l_3 :center false) ; The body
+
+            (difference                              ; Minus the edges and bore.
+
+             (->> (sphere ε)
+                  (translate [(* u 50)
+                              (* v (+ 1 t) (+ (/ D 2) ε))
+                              (- l_2 (* s (- l_1 ε)) (* t (+ (/ D 2) ε)))])
+                  (for [s [-1 1] t [0 1] u [-1 1]])
+                  (apply hull)
+                  (for [v [-1 1]]))
+
+             (bore -1/2))
+
+            (intersection (apply hull (rounding l_3)))) ; Corner rounding
+
+        ;; A clevis fork rod end.
+
+        (apply
+         difference
+
+         (->> (intersection
+               (apply cube (map (partial * 2) [D D l_34']))   ; The body
+
+               (->> (apply cube                               ; Edge chamfering
+                           (map #(- (* 2 % (Math/sqrt 2)) ε) [D D 100]))
+                    (rotate [0 0 (/ π 4)]))
+
+               (if (= n' 1)                             ; Corner rounding
+                 (apply intersection (rounding (- l_4 δ')))
+                 (apply hull (rounding (- l_4 δ')))))
+
+              (translate [0 0 l_34'])
+              (hull (cylinder (/ D_ext 2) 1 :center false))
+              (translate [0 0 l_4])
+              (union                         ; The neck
+               (cylinder (/ D_ext 2) l_4 :center false)))
+
+         ;; Slot
+
+         (->> (sphere ε)
+              (translate [(* u 50) (* t (- (/ D 2) ε)) (+ l_2 (- l_1) (* s 100) ε)])
+              (for [s [0 1] t [-1 1] u [-1 1]])
+              (apply hull))
+
+         ;; Bore(s)
+
+         (for [i (range n')]
+           (translate [0 0 (* i (+ δ D))] (bore -1)))))))
+
+  (defn rod-end [style L & rest]
+    (let [φ (degrees 45)        ; Essentially the "overhang" angle.
+          ε -0.4                ; Chamfer legnth
+          j 3                   ; Journal length
+          n 1                   ; Neck length
+
+          D_eff (+ D D_add)
+
+          ;; h(d): height of a cone of base diameter d and opening
+          ;; angle 2φ.
+
+          h (fn [d] (/ d 2 (Math/tan φ)))
+
+          ;; x(w): extended base diameter of a cone with a (lateral)
+          ;; gap of w relative to a cone of base diameter d.
+
+          x (fn [d w] (+ d (/ w 1/2 (Math/cos φ))))
+
+          g 3/16                         ; Gap
+          D_1 (+ D 0)                    ; Journal diameter
+          D_2 (- D 1)                    ; Neck diameter
+          L_1 (+ L (h (- D_eff D_2)))    ; Journal bottom
+          L_1' (+ L_1 (- j n))           ; Journal top
+          L_2 (+ L_1' (+ (h (- (+ D_1 D_ext) (* 2 D_2))) n))
+
+          ;; Create two versions of the joint geometry.  One, suitably
+          ;; extended by g, will serve as a cut-out.
+
+          [M F]
+          (for [δ [0 g]
+                :let [D' (x D_1 δ)
+                      D_ext' (x D_ext δ)
+                      r (/ D' 2)]]
+            (union
+             (->> (cylinder [0 r] (h D') :center false) ; Lower journal taper
+                  (translate [0 0 (- L_1 (h D'))]))
+             (->> (cylinder r (- L_1' L_1) :center false) ; Journal
+                  (translate [0 0 L_1]))
+             (->> (cylinder [r 0] (h D') :center false) ; Upper journal taper
+                  (translate [0 0 L_1']))
+             (->> (cylinder (/ (x D_2 δ) 2) (- L_2 L_1') :center false) ; Neck
+                  (translate [0 0 L_1']))
+             (->> (cylinder [0 (/ D_ext' 2)] (h D_ext') :center false)
+                  (translate [0 0 (- L_2 (h D_ext'))]))))]
+
+      (difference
+       (if (= style :fixed)
+         (->> (apply clevis rest)
+              (translate [0 0 (- L 7)])
+              (union (cylinder (/ D_ext 2) L :center false))
+              (intersection (cylinder (mapv (partial + (/ D_ext 2) ε) [0 500]) 500 :center false)))
+         (union
+          (difference
+           (union
+            (let [H (- L_2 (/ g (Math/sin φ)) (h 2.4))
+                  H_c (+ (/ D_ext 2) H ε)]
+              ;; The rod, up to the joint, with some chamfering.
+
+              (when (or true)
+                (intersection
+                 (cylinder (/ D_ext 2) H :center false)
+                 (for [s [0 1]]
+                   (->> (cylinder [H_c 0] H_c :center false)
+                        (rotate [(* π s) 0 0])
+                        (translate [0 0 (* H s)]))))))
+
+            (->> (apply clevis rest)
+                 (translate [0 0 (- 4 (* 3/2 D))])
+                 (intersection (->> (apply cube (repeat 3 (* 10 D)))
+                                    (translate [0 0 (* 5 D)])))
+                 (translate [0 0 L_2])))
+           F)
+
+          ;; The joint geometry.
+
+          (difference
+           M
+           ;; Hollow out the center with a suitably expanded cone, to
+           ;; ensure that the joint axis is fully supported by the
+           ;; conical end of the threaded section below it.
+
+           (->> (cylinder [(/ (x D_eff g) 2) 0] (h (x D_eff g)) :center false)
+                (translate [0 0 L])))))
+
+       ;; The thread.  We make sure the tip is perfectly conical past
+       ;; the specified height, so that it doesn't intefere with the
+       ;; bearing geometry.
+
+       (let [H (h D_eff)
+             H' (+ L H)]
+         (->> (thread D_eff P (+ L H P))
+              (translate [0 0 (- P)])
+              (intersection (cylinder [(* D_eff 1/2 H' (/ 1 H))  0] H' :center false))))
+
+       ;; Lead-in chamfer
+
+       (cylinder [(+ (/ D_eff 2) 3/2) (- (/ D_eff 2) 3/2)] 3))))
+
+
+  (def bridge-cable-bracket
+    (delay
+     (let [ε 2/5
+           ε' (+ ε ε)
+           D' (+ D D)
+
+           w 3
+           φ (degrees 10)
+           δ (* D (+ 2 (Math/tan φ)))
+
+           y_0 (/ (+ (second bridge-bracket-size) w) 2)
+
+           kernel (hull (cube w (+ 1/10 ε') (- D' ε'))
+                        (cube (- w ε') 1/10 D'))
+
+           loop (->> kernel
+                     (translate (apply
+                                 #(vector (/ (+ %1 w) 2) (/ (- %2 1) 2 s) 0)
+                                 (if (even? t) bridge-bracket-size (rseq bridge-bracket-size))))
+                     (rotate [0 0 (* 1/2 t π)])
+                     (for [t (range 4) s [-1 1]])
+                     cycle)]
+       (-> (->> loop
+                (partition 2 1)
+                (take 8)
+                (map (partial apply hull))
+                (apply union))
+
+           (union
+            (->> (union (cylinder (- D ε) w) (cylinder D (- w ε ε)))
+                 (rotate [(/ π 2) 0 0])
+                 (translate [0 y_0 (* s δ)])
+                 (for [s [0 2]])
+                 hull))
+
+           (union
+            (->> kernel
+                 (rotate [0 0 (/ π 2)])
+                 (translate [(* s (- D t -2 ε ε)) y_0 t])
+                 (for [s [-1 1] t [0 2]])
+                 hull))
+
+           (difference
+            (->> (countersink (/ (+ D bridge-bore-expansion) 2) (/ D 16) 50 50)
+                 (rotate [(/ π s 2) 0 0])
+                 (translate [0 (+ y_0 (* 1/2 s w)) (* t δ)])
+                 (for [s [-1 1] t [1 2]]))))))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Final assembly ;;
@@ -1765,19 +2267,64 @@
                [part-b part-c] (split-at (- (second stand-split-points)
                                             (first stand-split-points)) rest)
 
-               ;; Optionally shorten the upper portion of the to be cut out
-               ;; parts, as they're not functionally useful and hull.
+               ;; Optionally shorten the upper and/or lower portion of
+               ;; the to be cut out parts and hull.
+
+               shorten (fn [part & limits]
+                         [(map-indexed #(if (>= %1 (first limits)) (drop (quot n 2) %2) []) part)
+                          (map-indexed #(if (>= %1 (second limits)) (take (quot n 2) %2) []) part)])
 
                hulled-parts
-               (for [columns [(map-indexed #(if (< %1 12) (drop (quot n 2) %2) %2) part-a)
-                              part-b
-                              (map-indexed #(if (< %1 6) (drop (quot n 2) %2) %2) (reverse part-c))]]
-                 (for [column columns
+               (for [part (concat
+                           [part-b]
+                           (apply shorten part-a (take 2 stand-arm-lengths))
+                           (apply shorten (reverse part-c) (drop 2 stand-arm-lengths)))]
+                 (for [column part
                        [[a b] [c d]] (partition 2 1 column)]
                    (union (hull a b c) (hull b c d))))]
 
            (translate
             [0 0 (- 1 cover-thickness)]
+
+            (when (place-part? :stand)
+              ;; Assemble the parts of the stand, cut out the arms,
+              ;; then subtract the countersinks from the upper parts
+              ;; only.
+
+              (let [parts (list*
+                           (case-placed-shapes stand-boss)
+                           (first hulled-parts)
+
+                           (for [i [1 3 0 2]
+                                 :let [q (quot i 2)
+                                       r (rem i 2)
+                                       qq (- 1 q q)
+                                       rr (- 1 r r)
+
+                                       [take-this take-that] (cond->> [take take-last]
+                                                               (pos? q) reverse)]]
+                             (difference
+                              (apply union (nth hulled-parts (inc i)))
+
+                              (->> (sphere 1/2)
+                                   (translate [0 0 (* rr (+ 1/2 (stand-minimum-thickness r)))])
+                                   (stand-section (- 1 r)
+                                                  (for [n [-100 100]
+                                                        [t z] [[(/ wall-thickness -2) 0]
+                                                               [100 (* (Math/tan stand-arm-slope) 100)]]
+                                                        z_add [0 100]] [n (* qq t) (* rr (+ z z_add))]))
+                                   (take-this (inc (stand-arm-lengths i)))
+                                   (take-that 1)
+                                   (apply hull)))))
+
+                    [upper-parts lower-parts] (split-at 4 parts)]
+
+                (apply union
+                       (difference
+                        (apply union upper-parts)
+                        (case-placed-shapes stand-boss-cutout))
+                       lower-parts)))
+
             (when (place-part? :boot)
               (difference
                ;; Take the difference of lower 10° or so of the
@@ -1791,18 +2338,18 @@
                 difference
                 (for [δ boot-wall-thickness
                       :let [n (Math/ceil (/ stand-tenting-angle π 1/180))
-                            columns (apply map vector
-                                           (for [i ((if draft?
-                                                      identity (partial apply range))
-                                                    [0 (if (pos? δ) (quot n 2) n)])
-                                                 :let [h (if (and (zero? i) (pos? δ))
-                                                           boot-bottom-thickness 1/10)]]
-                                             (partition 2 1
-                                                        (stand-section
-                                                         (/ (- n i) n)
-                                                         (translate
-                                                          [0 0 (/ h -2)]
-                                                          (cylinder (+ (/ wall-thickness 2) δ) h))))))]]
+                            columns (->> (cylinder (+ (/ wall-thickness 2) δ) h)
+                                         (translate [0 0 (/ h -2)])
+                                         (stand-section (/ (- n i) n))
+                                         (drop (stand-arm-lengths 0))
+                                         (drop-last (stand-arm-lengths 2))
+                                         (partition 2 1)
+                                         (for [i ((if draft?
+                                                    identity (partial apply range))
+                                                  [0 (if (pos? δ) (quot n 2) n)])
+                                               :let [h (if (and (zero? i) (pos? δ))
+                                                         boot-bottom-thickness 1/10)]])
+                                         (apply map vector))]]
                   (union
                    (for [column columns
                          [[a b] [c d]] (partition 2 1 column)]
@@ -1812,55 +2359,18 @@
                     (translate [0 0 (+ 500 1/10 boot-wall-height)])
                     (stand-xform (- stand-tenting-angle)))
 
-               (case-placed-shapes stand-boss-cutout)))
+               (case-placed-shapes stand-boss-cutout))))))
 
-            (when (place-part? :stand)
-              (difference
-               (union
-                (case-placed-shapes stand-boss)
-                (second hulled-parts)
-                (difference
-                 (union (first hulled-parts) (last hulled-parts))
+       (when (place-part? :bridge)
+             ;; Bridge mount
 
-                 ;; The cut-out shape for the stand, is formed by
-                 ;; hulling shapes placed along the perimeter of the
-                 ;; stand.  For this, we reuse the function that forms
-                 ;; the stand sections themselves, to avoid having to
-                 ;; place the shapes manually.
+             (->> bridge-boss-indexes
+                  (partition 2 1)
+                  (map bridge-bearing)
+                  (apply union))))))))
 
-                 (let [[δ_1 δ_1'] (map (comp #(cons % [0 0]) *) stand-cutout-radius stand-cutout-depth)
-                       δ_2 [(- (+ 5 (/ wall-thickness 2))) 0]
-
-                       A (stand-section 0 (translate (conj δ_2 (- (first stand-minimum-thickness)))
-                                                     (cube 10 1 1/10)) true)
-
-                       B (nth (stand-section stand-cutout-position
-                                             (translate δ_1 (sphere (first stand-cutout-radius)))
-                                             true)
-                              (first stand-split-points))
-
-                       B' (nth (stand-section stand-cutout-position
-                                              (translate δ_1' (sphere (second stand-cutout-radius)))
-                                              true)
-                               (second stand-split-points))
-
-                       C (stand-section 1 (translate (conj δ_2 (second stand-minimum-thickness))
-                                                     (cube 10 1 1/10)) true)]
-                   (union
-                    (apply hull
-                           (for [y [0 100]]
-                             (translate [0 y 0] (first A) (first C) B)))
-
-                    (apply hull
-                           (for [y [-100 0]]
-                             (translate [0 y 0] (last A) (last C) B')))
-
-                    (hull
-                     (first A) (first C) (last A) (last C) B B')))))
-
-               ;; Minus the cutouts for the fasteners.
-
-               (case-placed-shapes stand-boss-cutout)))))))))))
+(def prototype
+  (delay))
 
 (defn -main [& args]
   ;; Process switch arguments and interpret the rest as parts to
@@ -1921,17 +2431,43 @@
         "left-subassembly" (spit "things/left-subassembly.scad"
                             (write-scad (assembly :left :top :bottom)))
         "left-assembly" (spit "things/left-assembly.scad"
-                              (write-scad (rotate [0 stand-tenting-angle 0]
-                                                  (assembly :right :top :bottom :stand))))
+                              (write-scad (xform (assembly :left :top :bottom :stand) -)))
 
-
-        ;; For other mixes of parts, useful during development but not
+        ;; For other mixes of parts that may be useful during development, but not
         ;; provided by the above.
 
         "custom-assembly" (spit "things/custom-assembly.scad"
                                 (write-scad (assembly :right :bottom :stand)))
 
+        ;; For arbitrary experimentation.
+
+        "prototype" (spit "things/prototype.scad" (write-scad @prototype))
+
         (cond
+          ;; Bridge
+
+          (clojure.string/starts-with? part "bridge/")
+          (let [subpart (subs part 7)
+                scad (case subpart
+                       "bracket" @bridge-cable-bracket
+                       "left-mount" (assembly :left :bridge)
+                       "right-mount" (assembly :right :bridge)
+
+                       "toe-fork" (let [[x l φ] bridge-toe-fork]
+                                    (rod-end x l, :fork φ))
+
+                       "toe-eye" (let [[x l φ] bridge-toe-eye]
+                                   (rod-end :fixed l, :eye φ))
+
+                       "separation-fork" (let [[x l φ] bridge-separation-fork]
+                                           (rod-end x l, :fork φ 2))
+
+                       (println (format "No part `%s'." subpart)))]
+            (when scad
+              (spit "things/bridge.scad" (write-scad scad))))
+
+          ;; Miscellaneous parts (mostly keycaps).
+
           (clojure.string/starts-with? part "misc/")
           (let [common [:fn-value (if draft? nil 500)]
                 common-dsa (into common [:extra-height 1/2 :mount-recess 6/5])
