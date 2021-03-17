@@ -1309,7 +1309,8 @@ choose, must be able to support a minimum track spacing of 6mil.
 
 ### BOM
 
-Apart from the PCBs, you'll need the following parts:
+Apart from the PCBs, you'll also need a 6P6C (RJ25) cable, to connect
+the two sides, as well as the following parts:
 
 | Component(s) | Part description | Part # |
 | ------------ | ---------------- | ------ |
@@ -1330,8 +1331,12 @@ Apart from the PCBs, you'll need the following parts:
 | U1 (1 pcs ATmega32U4-AU) | AVR microcontroller | ATMEGA32U4-AU |
 | Y1 (1 pcs, Crystal_GND24) | 16MHz, 10 pF | ABM3B-16.000MHZ-10-1-U-T |
 
-In addition to the above, you'll also need a 6P6C (RJ25) cable, to
-connect the controllers on each side.
+An interactive [HTML BOM
+view](https://dpapavas.github.io/lagrange-keyboard/ibom/) is also
+available, which can be useful to find your way around the PCB and
+keep track of components while hand soldering.  Note that this page
+remembers any changes you make, so that you can also use it to keep
+track of sourced parts, or across multiple soldering sessions.
 
 I've tried to select components with high availability, but you can
 treat the part numbers given for the two-terminal chip resistor and
