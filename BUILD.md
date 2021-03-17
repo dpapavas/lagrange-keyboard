@@ -1248,7 +1248,8 @@ any residue before the glue cures.
 
 The controller PCB was designed with [KiCad 5.0.2](https://kicad.org/)
 and all relevant files are contained in the [kicad/](./kicad)
-directory.  The board is the same for each side, so you will require a
+directory (including an interactive [HTML BOM view](./kicad/bom/ibom.html)
+useful for hand soldering). The board is the same for each side, so you will require a
 total of two identical PCBs, populated with the same components.
 
 There are numerous fabrication services, where you can simply upload
