@@ -805,16 +805,19 @@ also be useful, if you intend to crimp your own connectors.
 
 ### Installing the threaded inserts
 
-The screw bosses have been designed for self-tapping threaded inserts.
-These are normally installed in a pre-bored hole, but to make
-installation easier, the bosses are printed with internal threads
-matching the external thread of the insert.  The inserts can be
-installed without any special tools.  One way is the following: use a
-short hex bolt with a nut threaded onto its end, leaving a few turns
-of the bolt's thread exposed.  Thread the insert into the exposed end
-and jam it against the nut.  You don't need to tighten it very much.
-Next, carefully align the insert with the internal threads of the boss
-and start threading it into the it.
+The screw bosses, both for the cover and for the PCB, have been
+designed for self-tapping threaded inserts, such as the ones pictured
+below, alongside their matching screws (bottom cover on the left, PCB
+on the right; see [here](#the-case-walls) and [here](#the-bottom-cover)
+for the exact specifications).  These are normally installed in a
+pre-bored hole, but to make installation easier, the bosses are
+printed with internal threads matching the external thread of the
+insert.  The inserts can be installed without any special tools.  One
+way is the following: use a short hex bolt with a nut threaded onto
+its end, leaving a few turns of the bolt's thread exposed.  Thread the
+insert into the exposed end and jam it against the nut.  You don't
+need to tighten it very much.  Next, carefully align the insert with
+the internal threads of the boss and start threading it into the it.
 
 You can use a hex socket to make installation more comfortable, but
 using a wrench is not advisable, especially during the initial phase,
@@ -826,6 +829,8 @@ holding on to the bolt to keep it from backing out and you should be
 done.  The insert should be flush with the boss' surface, or barely
 depressed into it, but make sure not to overtighten it.  No adhesive
 should be required to keep the insert in place.
+
+![Fastening hardware](./doc/fastening_hardware.png?raw=true)
 
 ### Mounting the switches
 
