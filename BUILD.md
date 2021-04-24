@@ -849,7 +849,8 @@ before installing each switch.
 diagram](./doc/wiring_diagram_switches_right.svg?raw=true) instead.
 
 Begin by cutting off the plastic pins used for PCB mounted switches,
-if present.  These can interfere with the chassis in certain tight
+if present (*not* the pin in the center, see [here](https://support.wasdkeyboards.com/hc/en-us/articles/115009270628-Plate-Mounted-vs-PCB-Mounted-Switches)
+for a better view).  These can interfere with the chassis in certain tight
 spots and will probably be a nuisance during wiring anyway.  Switches
 are normally held onto the plate by a pair of tabs and also, and
 probably chiefly, by the solder joints with the PCB.  Since this is a
