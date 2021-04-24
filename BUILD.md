@@ -848,20 +848,26 @@ before installing each switch.
   When working on the right side, you can use [this mirrored
 diagram](./doc/wiring_diagram_switches_right.svg?raw=true) instead.
 
-Begin by cutting off the plastic pins used for PCB mounted switches,
-if present.  These can interfere with the chassis in certain tight
-spots and will probably be a nuisance during wiring anyway.  Switches
-are normally held onto the plate by a pair of tabs and also, and
-probably chiefly, by the solder joints with the PCB.  Since this is a
-(mostly) handwired build, the solder joints won't help keep the
-switches in place.  The plate alone generally isn't sufficient to keep
-the switches in, and although you can configure nubs on the edges of
-the holes, to give the tabs on the switch something to grab on, I have
-not found them to work reliably after trying several designs and
-configurations.  This may be due to fundamental limitations of the FDM
-technique, but perhaps nubs could be designed better, so you might want
-to perform your own experiments.  Otherwise, if robustness is desired,
-glue will be necessary.
+If you have PCB mount switches (also called "5-pin", as opposed to the
+"3-pin", plate mount switches), begin by cutting off the plastic pins
+that are meant to locate the switch on the PCB. (This refers to the
+small plastic pins that are present on the left and right edges of the
+bottom of the right switch
+[here](https://deskthority.net/wiki/File:PCBvsPlate.jpg), but absent
+from the left switch, *not* the larger pin in the center).  These pins
+can interfere with the chassis in certain tight spots and will
+probably be a nuisance during wiring anyway.  Switches are normally
+held onto the plate by a pair of tabs and also, and probably chiefly,
+by the solder joints with the PCB.  Since this is a (mostly) handwired
+build, the solder joints won't help keep the switches in place.  The
+plate alone generally isn't sufficient to keep the switches in, and
+although you can configure nubs on the edges of the holes, to give the
+tabs on the switch something to grab on, I have not found them to work
+reliably after trying several designs and configurations.  This may be
+due to fundamental limitations of the FDM technique, but perhaps nubs
+could be designed better, so you might want to perform your own
+experiments.  Otherwise, if robustness is desired, glue will be
+necessary.
 
 Depending on the filament type used for the chassis and the material
 of the switches, some glue chemistries work better than others.
