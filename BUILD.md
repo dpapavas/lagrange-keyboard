@@ -1418,11 +1418,14 @@ the LED state to the slave, necessitating LEDs on both sides.
 ## Software
 
 You can use the [QMK firmware](https://qmk.fm/) to drive the keyboard.
-At the time of this writing, the driver hasn't yet been merged into
-QMK, so you'll have to check out my forked version.
+Detailed instructions for downloading and building QMK can be found
+[elsewhere](https://docs.qmk.fm/).  Here, I'll only briefly cover the
+basic procedure.
+
+You can download and build the QMK firmware as follows:
 
 ```bash
-$ git clone https://github.com/dpapavas/qmk_firmware.git -b lagrange_keyboard
+$ git clone https://github.com/qmk/qmk_firmware.git
 $ cd qmk_firmware/
 $ make git-submodule
 $ make handwired/lagrange:default
@@ -1434,11 +1437,27 @@ build and install in one step with:
 ```bash
 $ make handwired/lagrange:default:dfu
 ```
-
 In the previous commands `default` refers to the default keymap, which
 is meant to be a basic keymap, most closely resembling that of a
 "typical" keyboard.  Read the relevant QMK documentation on how to
 create your own private keymap.
+
+The default configuration uses the MCU's EEPROM to mark which side is
+left and which right. You'll therefore also need to flash the EEPROM
+of the left-side MCU with the following command:
+
+```bash
+$ make handwired/lagrange:default:dfu-split-left
+```
+
+Similarly, you should flash the right-side MCU with:
+
+```bash
+$ make handwired/lagrange:default:dfu-split-right
+```
+
+Note that you only need to perform the latter two steps *once*, during
+initial flashing (unless you somehow wipe the MCU's EEPROM).
 
 If you decided to use a different row/column to pin mapping, perhaps
 it would be best to override the defaults in your own keymap, instead
