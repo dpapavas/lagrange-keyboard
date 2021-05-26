@@ -1109,26 +1109,30 @@
   ;; These are small shapes, placed at the edges of the key plates.
   ;; Hulling kernels placed on neighboring key plates yields
   ;; connectors between the plates, which preserve the plate's chamfer
-  ;; and are of consistent width.
+  ;; and are of consistent width.  (We make the
+  ;; kernels "infinitesimally" larger than the key plates, to avoid
+  ;; non-manifold results).
 
   (key-place place, i j, x y (or z 0)
              (fn [& _]
-               (->> (apply hull
-                           (for [s [-1 1]
-                                 :let [[δx δy] (map #(* (compare %1 0) -1/4 plate-thickness) [x y])]]
-                             (->> (sphere (/ plate-thickness 4 (Math/cos (/ π 8))))
-                                  (with-fn 8)
-                                  (rotate [0 0 (/ π 8)])
-                                  (translate [δx δy (/ plate-thickness s 4)]))))
-                    (translate [0 0 (/ plate-thickness -2)])))))
+               (let [[δx δy] (map #(* (compare %1 0) -1/4 plate-thickness) [x y])
+                     ε (+ (* x 0.003) (* y 0.002))]
+                 (->> (sphere (/ (+ plate-thickness ε) 4 (Math/cos (/ π 8))))
+                      (with-fn 8)
+                      (rotate [0 0 (/ π 8)])
+                      (translate [δx δy (/ plate-thickness s 4)])
+                      (for [s [-1 1]])
+                      (apply hull)
+                      (translate [0 0 (/ plate-thickness -2)]))))))
 
 (def key-web (partial web-kernel :main))
 (def thumb-web (partial web-kernel :thumb))
 
 (defn triangle-hulls [& shapes]
-  (apply union
-         (map (partial apply hull)
-              (partition 3 1 shapes))))
+  (->> shapes
+       (partition 3 1)
+       (map (partial apply hull))
+       (apply union)))
 
 (def connectors
   (delay
@@ -1141,7 +1145,7 @@
        (key-web 1 (row -2) 1 -1)
        (key-web 1 (row -2) 1 1)
        (key-web 2 (row -2) -1 -1)
-       (key-web 1 (dec (row -2)) 1 -1)))
+       (key-web 1 (row -3) 1 -1)))
 
     (when (every? place-key-at? [[2 0] [1 0] [2 0]])
       (triangle-hulls
@@ -1162,11 +1166,11 @@
     ;; Palm key connectors.
 
     (when (every? place-key-at? [[(column -1) (row -2)]
-                                 [(dec (column -1)) (row -2)]])
+                                 [(column -2) (row -2)]])
       (triangle-hulls
        (key-web (column -1) (row -2) -1 -1)
        (key-web (column -1) (row -1) -1 1)
-       (key-web (dec (column -1)) (row -2) 1 -1)))
+       (key-web (column -2) (row -2) 1 -1)))
 
     ;; Regular connectors.
 
@@ -1200,7 +1204,7 @@
      (for [i (butlast columns)           ; Diagonal connections
            j (butlast rows)
            :let [maybe-inc (if (= i 1) inc identity)]
-           :when (and (not= [i j] [1 (dec (row -2))])
+           :when (and (not= [i j] [1 (row -3)])
                       (every? place-key-at?
                               (for [s [0 1] t [0 1]]
                                 [(+ i s) (+ j t)])))]
@@ -1351,9 +1355,9 @@
              [(column -1) (row -1), 1 -1, -1/4 1/4]
              [(column -1) (row -1), -1 -1, 1/4 1/4]
              [(column -1) (row -1), -1 1, -5 -8 0]
-             [(dec (column -1)) (row -2), 1 -1, -9 -4]
-             [(dec (column -1)) (row -2), 0 -1, 0 -4]
-             [(dec (column -1)) (row -2), -1 -1, 3 -4]
+             [(column -2) (row -2), 1 -1, -9 -4]
+             [(column -2) (row -2), 0 -1, 0 -4]
+             [(column -2) (row -2), -1 -1, 3 -4]
              [3 (row -1), 1 -1, 0 -3 -9/2]
              [3 (row -1), 0 -1, 4 -3 -9/2]
              [3 (row -1), -1 -1]))
@@ -1496,13 +1500,18 @@
                  (extrude-linear {:height 1/10 :center false}))])))
 
 (defn wall-brace [sections & endpoints]
-  ;; Hull consecutive sections to form the walls.  Filter out segments
-  ;; where shape-a and shape-b above coincide, to avoid wasting
-  ;; cycles.
+  ;; Hull consecutive sections to form the walls.  Filter out
+  ;; degenerate segments (where the parts are colinear, instead of
+  ;; forming a triangle, for instance because shape-a and shape-b
+  ;; above coincide), to avoid wasting cycles to generate non-manifold
+  ;; results.
 
-  (for [[a b] (partition 2 1 (sections endpoints))
-        :when (not= a b)]
-    (union (hull a (second b)) (hull (first a) b))))
+  (->> (sections (reverse endpoints))
+       (apply concat)
+       (partition 3 1)
+       (filter #(= (count (set %)) 3))
+       (map (partial apply hull))
+       (apply union)))
 
 ;; Decide when to place a screw boss in a segment and what parameters
 ;; to use.  Note that we also use this to create a cutout for case
@@ -1544,13 +1553,16 @@
 (defn screw-boss [& endpoints]
   (when-let [[x d] (place-boss? endpoints)]
     ;; Hull the boss itself with a part of the final, straight wall
-    ;; segment, to create a gusset of sorts, for added strength.
+    ;; segment, to create a gusset of sorts, for added strength.  (We
+    ;; don't use the exact wall thickness, to avoid non-manifold
+    ;; results.)
 
     (hull
      (intersection
-      (apply wall-brace
-             (comp (partial take-last 2) wall-sections)
-             endpoints)
+      (binding [wall-thickness (- wall-thickness 0.005)]
+        (apply wall-brace
+               (comp (partial take-last 2) wall-sections)
+               endpoints))
 
       ;; The height is calculated to yield a 45 deg gusset.
 
