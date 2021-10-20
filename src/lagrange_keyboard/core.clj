@@ -29,6 +29,23 @@
                         (mapv f θ)
                         (f (first θ)))))
 
+;; General parameters.
+
+(def place-keycaps? false)
+(def keys-depressed? false)
+(def place-keyswitches? false)
+(def place-pcb? false)
+(def draft? true)
+(def mock-threads? true)
+(def case-test-build? false)
+(def case-test-locations [0])
+(def case-test-volume [50 50 150, 0 0 0])
+(def case-color [0.70588 0.69804 0.67059])
+(def interference-test-build? false)
+(def thumb-test-build? false)
+(def key-test-build? false)
+(def key-test-range [1 2, 4 4])
+
 ;; Main section parameters.
 
 (def row-count 5)
@@ -273,22 +290,56 @@
 (def pcb-fastener-thread [5 0.5 6])     ; PCB mount thread diameter,
                                         ; pitch and length in mm.
 
-;; General parameters.
+;; Printable keycap parameters.
 
-(def place-keycaps? false)
-(def keys-depressed? false)
-(def place-keyswitches? false)
-(def place-pcb? false)
-(def draft? true)
-(def mock-threads? true)
-(def case-test-build? false)
-(def case-test-locations [0])
-(def case-test-volume [50 50 150, 0 0 0])
-(def case-color [0.70588 0.69804 0.67059])
-(def interference-test-build? false)
-(def thumb-test-build? false)
-(def key-test-build? false)
-(def key-test-range [1 2, 4 4])
+(def keycap-family-common [:fn-value (if draft? nil 500)
+                           :thickness [9/5 9/5]        ; Cap shell width [base top]
+                           :mount-cross-length 4.1     ; Mount cross arm length
+                           :mount-cross-width 1.19     ; Mount cross arm width
+                           :mount-radius 2.75])        ; Mount stem radius
+
+;; SA family row 3 keycap. See:
+;; https://pimpmykeyboard.com/template/images/SAFamily.pdf
+
+(def keycap-family-sa (into keycap-family-common [:height (* 0.462 25.4) :radius 33.35]))
+(def keycap-family-sa-concave (into keycap-family-sa [:top :spherical-concave
+                                                      :corner-rounding 0.179]))
+(def keycap-family-sa-saddle (into keycap-family-sa
+                                   [:top :saddle
+                                    :corner-rounding 0.145 :extra-height 3/2
+                                    :saddle-aspect 2 :saddle-skew [-6/10 -8/10]]))
+
+;; DSA family keycap. See:
+;; https://pimpmykeyboard.com/template/images/DSAFamily.pdf
+
+(def keycap-family-dsa (into keycap-family-common [:height (* 0.291 25.4) :extra-height 1/2
+                                                   :base-height 1 :radius 36.5
+                                                   :mount-recess 6/5]))
+(def keycap-family-dsa-concave (into keycap-family-dsa [:top :spherical-concave
+                                                        :corner-rounding 0.446]))
+(def keycap-family-dsa-convex (into keycap-family-dsa [:top :spherical-convex
+                                                       :corner-rounding 0.536]))
+(def keycap-family-dsa-fanged (into keycap-family-dsa-convex
+                                    [:mount-offset [-0.025 0]
+                                     :fang-corner-rounding 0.61 :fang-skew 3/2
+                                     :fang-angle (degrees 54)]))
+
+;; An OEM-like keycap, at least functionally (meaning
+;; cylindrical top of typical OEM radius and height
+;; somewhere between OEM R3 and R4)
+
+(def keycap-family-oem (into keycap-family-common [:top :cylindrical
+                                                   :height 15/2 :radius 26
+                                                   :thickness [6/5 9/5]]))
+(def keycap-family-oem-flush (into keycap-family-oem [:corner-rounding 0.343]))
+(def keycap-family-oem-recessed (into keycap-family-oem [:corner-rounding 0.2
+                                                         :mount-recess 5/2
+                                                         :extra-height 5/2]))
+;; Route out a keycap legend on the top of the keycap.  Must be set to
+;; a [character font-family font-size] triplet.  The official Lagrange
+;; logo keycap was created with ["\\U01D4DB" "Latin Modern Math" 11].
+
+(def keycap-legend nil)
 
 ;; Define some utility functions.
 
@@ -346,16 +397,14 @@
         RBD [0.82745 0.09804 0.16078]
         RAR [0.79608 0.18431 0.16471]]
 
-    (list*
-     (case where                        ; family
-       :thumb :dsa
-       :sa)
+    [(cond                              ; keycap-family
+       (= [where, i j] [:thumb 0 1]) keycap-family-dsa-fanged
+       (= [where, j] [:thumb, 0]) keycap-family-dsa-convex
+       (= where :thumb) keycap-family-dsa-concave
 
-     (cond                              ; top
-       (= [where, j] [:thumb, 0]) :convex
-       (= [where, i j] [:thumb, 0 1]) :convex
-       (= [where, i j] [:main, (column -1) (row -1)]) :convex
-       :else :concave)
+       (= [where, i j] [:main, (column -1) (row -1)]) keycap-family-sa-saddle
+
+       :else keycap-family-oem-flush)
 
      (if (= where :thumb)               ; color
        (case j
@@ -365,11 +414,7 @@
        (cond
          (= [i j] [(column -1) (row -1)]) RAR
          (= i 5) GQC
-         :else WAN))
-
-     (cond                              ; misc
-       (= [where, i j] [:thumb 0 1]) [:fang-angle (degrees 54) :fang-skew 3/2]
-       :else []))))
+         :else WAN))]))
 
 (defn scale-to-key [where, i j, x y z]
   ;; Scale normalized plate coordinates (i.e. in [-1 1]) to world
@@ -772,19 +817,22 @@
 ;; ρ is the shared radius of sides, top and corner rounding,
 ;; φ determines how deeply to round the corners.
 
-(defn base-keycap-shape [size h h_0 ρ top & {:keys [fn-value shape corner-rounding
-                                                    saddle-aspect saddle-skew
-                                                    fang-angle fang-skew fang-corner-rounding]}]
-  (let [intersection-or-difference (if (= top :concave) difference intersection)
-        minus-or-plus (if (= top :convex) - +)
-
+(defn base-keycap-shape [size h h_0 ρ & {:keys [fn-value shape top corner-rounding
+                                                saddle-aspect saddle-skew fang-angle
+                                                fang-skew fang-corner-rounding]}]
+  (let [[minus-or-plus intersection-or-difference]
+        (case top
+          (:spherical-convex :saddle) [- intersection]
+          [+ difference])
+        
         d_0 (/ keycap-length 2) ; Half-length at base
         d_1 (* 1/4 25.4)        ; Half-length at top
 
         ;; h_1 is height at center of each crest
 
-        h_1 (if (= top :saddle)
-              h
+        h_1 (case top
+              :saddle h
+              :cylindrical (minus-or-plus h (- ρ (Math/sqrt (- (* ρ ρ) (* d_1 d_1)))))
               (minus-or-plus h (* ρ (- 1 (Math/cos (Math/asin (/ d_1 ρ)))))))
 
         ;; Consider two points on the center of the base and top of a
@@ -841,16 +889,21 @@
 
                 ;; Plus or minus the top.
 
-                (if (= top :saddle)
+                (case top
                   ;; Torroidal top.
 
-                  (->> (circle ρ)
-                       (translate [(* saddle-aspect ρ) 0])
-                       (extrude-rotate {:angle 360})
-                       (rotate [(/ π 2) (/ π 2) 0])
-                       (translate [0 0 (* (- saddle-aspect 1) ρ)])
+                  :saddle (->> (circle ρ)
+                               (translate [(* saddle-aspect ρ) 0])
+                               (extrude-rotate {:angle 360})
+                               (rotate [(/ π 2) (/ π 2) 0])
+                               (translate [0 0 (* (- saddle-aspect 1) ρ)])
 
-                       (translate (map * (concat saddle-skew [1]) (repeat h))))
+                               (translate (map * (concat saddle-skew [1]) (repeat h))))
+
+                  :cylindrical (->> (cylinder ρ 100)
+                                    (scale [(/ (first size) keycap-length) 1 1])
+                                    (rotate [(/ π 2) 0 0])
+                                    (translate [0 0 (+ ρ h)]))
 
                   ;; Spherical top (rotated to avoid poles).
 
@@ -883,8 +936,7 @@
               true (translate [(- ρ_1) 0])
               true (extrude-rotate {:angle 90})
               true (translate [(+ ρ_0 ρ_1) 0])
-              true (rotate [(/ π -2) (if (and fang-angle (zero? s))
-                                       fang-corner-rounding corner-rounding) (/ π 4)])
+              true (rotate [(/ π -2) (if fang fang-corner-rounding corner-rounding) (/ π 4)])
               true (translate (conj (mapv (partial * -1/2) size) h_0))
               true (mirror [s 0])
               true (mirror [0 t])
@@ -893,18 +945,14 @@
               fang (rotate fang-angle [0 0 1])
               fang (translate (map * (repeat -1/2) size))))))))))
 
-(defn keycap-shape [family size h_add top & rest]
-  (let [[h_eff h_0 ρ] (case family
-                        ;; SA family row 3 keycap. See:
-                        ;; https://pimpmykeyboard.com/template/images/SAFamily.pdf
-
-                        :sa [(+ h_add (* 0.462 25.4)) 0 33.35]
-
-                        ;; DSA family keycap. See:
-                        ;; https://pimpmykeyboard.com/template/images/DSAFamily.pdf
-
-                        :dsa [(+ h_add (* 0.291 25.4)) 1 36.5])]
-    (apply base-keycap-shape size h_eff h_0 ρ top rest)))
+(defn keycap-shape [size & rest]
+  (let [{h :height           ; Keycap height (measured at top-center).
+         h_add :extra-height ; Additional (wrt profile) height.
+         h_0 :base-height    ; Height of vertical part of base.
+         ρ :radius           ; Radius of sides and top.
+         :or {h_add 0
+              h_0 0}} rest]
+    (apply base-keycap-shape size (+ h h_add) h_0 ρ rest)))
 
 (defn keycap [where, i j]
   ;; For distance from key plate to released keycap (for Cherry MX
@@ -912,33 +960,27 @@
   ;;
   ;; https://www.cherrymx.de/en/dev.html
 
-  (let [[family top color-triplet & rest] (key-options-at where, i j)]
+  (let [[family-options color-triplet] (key-options-at where, i j)]
     (->> (apply keycap-shape
-                family
                 (mapv (partial * keycap-length) (key-scale-at where, i j))
-                0
-                top
-                rest)
+                family-options)
 
          (translate [0 0 (if keys-depressed? 3 6.6)])
          (color color-triplet))))
 
-(defn printable-keycap [family scale top & rest]
+(defn printable-keycap [scale & rest]
   (let [size (mapv (partial * keycap-length) scale)
-        {h_1 :homing-bar-height
-         h_add :extra-height ; Additional (wrt profile) height.
-         w :thicknes         ; Cap shell width
+        {w :thickness
          a :mount-cross-length
          b :mount-cross-width
          r :mount-radius
          δ :mount-offset
+         h :height
+         h_add :extra-height
          h_0 :mount-recess
-         :or {h_add 0
-              w 1.8
-              a 4.1
-              b 1.19
-              r 2.75
-              δ [0 0]
+         h_1 :homing-bar-height
+         :or {δ [0 0]
+              h_add 0
               h_0 0
               h_1 0}
          } rest
@@ -953,21 +995,25 @@
 
       (difference
        (union
-        (apply keycap-shape family size h_add top rest)
+        (apply keycap-shape size rest)
         (when (pos? h_1)
-          (->> (apply keycap-shape family size h_add top rest)
+          (->> (apply keycap-shape size rest)
                (intersection (hull (for [x [-2 2]]
                                      (translate [x 0 0] (with-fn 50 (cylinder 1/2 100))))))
                (translate [0 0 h_1]))))
 
        (union
-        (apply keycap-shape family (mapv (partial + (* -2 w)) size) (- h_add w) top
-               (apply concat (seq (dissoc (apply hash-map rest) :corner-rounding))))
-        (translate [0 0 -4.99] (apply cube (conj (mapv (partial + (* -2 w)) size) 10)))))
+        (apply keycap-shape (mapv (partial + (* -2 (first w))) size)
+               (apply concat
+                      (-> (apply hash-map rest)
+                          (dissoc :corner-rounding)
+                          (update :extra-height #(- (or % 0) (second w)))
+                          seq)))
+        (translate [0 0 -4.99] (apply cube (conj (mapv (partial + (* -2 (first w))) size) 10)))))
 
       ;; The stem
 
-      (apply keycap-shape family size h_add top
+      (apply keycap-shape size
              :shape (translate (conj δ_3 h_0) (cylinder r 100 :center false))
              rest))
 
@@ -982,7 +1028,19 @@
                                (translate [0 0 2]))))
 
                 (->> (cube 15/8 15/8 4)
-                     (rotate [0 0 (/ π 4)]))))))
+                     (rotate [0 0 (/ π 4)])))
+
+     ;; The legend
+
+     (when-let [[c font size] keycap-legend]
+       (->> (text c
+                  :font font
+                  :size size
+                  :halign "center"
+                  :valign "center")
+            (extrude-linear {:height 1
+                             :center false})
+            (translate [0 0 (+ h h_add -1/2)]))))))
 
 ;; Set up bindings that either generate SCAD code to place a part, or
 ;; calculate its position.
@@ -2481,9 +2539,8 @@
           ;; Miscellaneous parts (mostly keycaps).
 
           (clojure.string/starts-with? part "misc/")
-          (let [common [:fn-value (if draft? nil 500)]
-                common-dsa (into common [:extra-height 1/2 :mount-recess 6/5])
-                common-dsa-convex (into common-dsa [:corner-rounding 0.536])
+          (let [
+
 
                 subpart (subs part 5)
                 scad (case subpart
@@ -2495,31 +2552,35 @@
 
                        ;; Printable keycaps.
 
-                       "dsa-1u-convex" (apply printable-keycap
-                                              :dsa [1 1] :convex common-dsa-convex)
-                       "dsa-1u-concave" (apply printable-keycap
-                                               :dsa [1 1] :concave :corner-rounding 0.446 common-dsa)
-                       "dsa-1.25u-convex" (apply printable-keycap
-                                                 :dsa [1 5/4] :convex common-dsa-convex)
-                       "dsa-1.5u-convex" (apply printable-keycap
-                                                :dsa [1 3/2] :convex common-dsa-convex)
-                       "dsa-1.5u-convex-homing" (apply printable-keycap
-                                                       :dsa [1 3/2] :convex
+                       "oem-1u-recessed" (apply printable-keycap [1 1]
+                                                keycap-family-oem-recessed)
+
+                       "oem-1u" (apply printable-keycap [1 1]
+                                       keycap-family-oem-flush)
+
+                       "oem-1.5u" (apply printable-keycap [3/2 1]
+                                         keycap-family-oem-flush)
+
+                       "oem-1.5u-recessed" (apply printable-keycap [3/2 1]
+                                                  keycap-family-oem-recessed)
+
+                       "dsa-1u-convex" (apply printable-keycap [1 1]
+                                              keycap-family-dsa-convex)
+                       "dsa-1u-concave" (apply printable-keycap [1 1]
+                                               keycap-family-dsa-concave)
+                       "dsa-1.25u-convex" (apply printable-keycap [1 5/4]
+                                                 keycap-family-dsa-convex)
+                       "dsa-1.5u-convex" (apply printable-keycap [1 3/2]
+                                                keycap-family-dsa-convex)
+                       "dsa-1.5u-convex-homing" (apply printable-keycap [1 3/2]
                                                        :homing-bar-height 1/4
-                                                       common-dsa-convex)
-                       "sa-1.5u-concave" (apply printable-keycap
-                                                :sa [3/2 1] :concave :corner-rounding 0.179 common)
-                       "sa-1.5u-saddle" (apply printable-keycap
-                                               :sa [3/2 1] :saddle
-                                               :corner-rounding 0.145 :extra-height 3/2
-                                               :saddle-aspect 2 :saddle-skew [6/10 8/10]
-                                               common)
-                       "dsa-1u-fanged" (apply printable-keycap
-                                              :dsa [0.95 1] :convex
-                                              :mount-offset [-0.025 0]
-                                              :fang-corner-rounding 0.61 :fang-skew 3/2
-                                              :fang-angle (degrees 54)
-                                              common-dsa-convex)
+                                                       keycap-family-dsa-convex)
+                       "sa-1.5u-concave" (apply printable-keycap [3/2 1]
+                                                keycap-family-sa-concave)
+                       "sa-1.5u-saddle" (apply printable-keycap [3/2 1]
+                                               keycap-family-sa-saddle)
+                       "dsa-1u-fanged" (apply printable-keycap [0.95 1]
+                                              keycap-family-dsa-fanged)
                        (println (format "No part `%s'." subpart)))]
             (when scad
               (spit "things/misc.scad" (write-scad scad))))

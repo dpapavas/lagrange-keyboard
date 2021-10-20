@@ -870,6 +870,14 @@ Here `subpart` can be any of the following:
 
 * `bracket`: A bracket, mounted over the PCB, used to tie the wiring
   harness to.
+* `oem-1u`, `oem-1.5u`: Cylindrical top, concave keycaps, very much
+  like typical OEM keycaps, with the default height being somewhere
+  between OEM R3 and R4.  Can be useful for the main section, as
+  uniform cylindrical keycaps seem to be hard to find otherwise.
+* `oem-1u-recessed`, `oem-1.5u-recessed`: Same as above, but with a
+  recessed mount stem, allowing the cap to extend lower over the
+  switch.  The effective height is the same so the difference is just
+  a matter of aesthetics.
 * `dsa-1u-convex`, `dsa-1.25u-convex`, `dsa-1.5u-convex`: Convex 1u,
   1.25u and 1.5u DSA keycaps, useful for the thumb section.
 * `dsa-1.5u-convex-homing`: As above, only with a homing bar in the
@@ -886,6 +894,13 @@ Here `subpart` can be any of the following:
   section, to require less inward curling of the thumb compared to a
   standard 1u key.  It is also concave, to allow comfortable pressing
   of the key with the palm.
+
+You can optionally add a legend to the keycap top, by setting
+`keycap-legend`.  A `[character font-family font-size]` triplet should
+be specified (see the help menu in OpenSCAD for a list of font names).
+This will carve the letter into the keycap top and can either be left
+as is, or filled in with something like epoxy putty or glue and sanded
+flush for a "double shot" style legend.
 
 #### Printing keycaps
 
